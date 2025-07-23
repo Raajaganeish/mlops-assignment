@@ -1,0 +1,20 @@
+pandas
+numpy
+scikit-learn
+ 
+mlflow
+ 
+# DVC (optional - for large datasets like California Housing)
+dvc
+dvc[gdrive]  # if using Google Drive as DVC remote
+ 
+# API framework
+fastapi
+uvicorn[standard]
+ 
+# Logging & monitoring
+python-multipart
+prometheus-client
+ 
+# Linting and formatting
+flake8
