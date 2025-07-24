@@ -10,6 +10,7 @@ dvc[gdrive]  # if using Google Drive as DVC remote
  
 # API framework
 fastapi
+uvicorn
 uvicorn[standard]
  
 # Logging & monitoring
@@ -18,3 +19,8 @@ prometheus-client
  
 # Linting and formatting
 flake8
+
+# inference and model serving
+joblib
+pydantic
+numpy
