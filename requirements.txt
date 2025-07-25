@@ -24,3 +24,8 @@ flake8
 joblib
 pydantic
 numpy
+
+
+# Testing
+pytest
+httpx
