@@ -58,7 +58,7 @@ def log_prediction(
 
 def get_prediction_stats(start: str = None, end: str = None):
     if not start:
-        start = (datetime.utcnow() - timedelta(days=5)).isoformat()
+        start = (datetime.utcnow() - timedelta(days=15)).isoformat()
     if not end:
         end = datetime.utcnow().isoformat()
 
@@ -69,6 +69,7 @@ def get_prediction_stats(start: str = None, end: str = None):
             """
             SELECT COUNT(*),
                    SUM(CASE WHEN status_code = 200 THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN status_code = 400 THEN 1 ELSE 0 END),
                    SUM(CASE WHEN status_code = 422 THEN 1 ELSE 0 END),
                    SUM(CASE WHEN status_code = 500 THEN 1 ELSE 0 END)
             FROM predictions
@@ -76,7 +77,7 @@ def get_prediction_stats(start: str = None, end: str = None):
         """,
             (start, end),
         )
-        total, ok_200, err_422, err_500 = cursor.fetchone()
+        total, ok_200, err_400, err_422, err_500 = cursor.fetchone()
 
         cursor.execute(
             """
@@ -104,6 +105,7 @@ def get_prediction_stats(start: str = None, end: str = None):
         "end": end,
         "total_requests": total or 0,
         "success_200": ok_200 or 0,
+        "bad_request_400": err_400 or 0,
         "validation_errors_422": err_422 or 0,
         "internal_errors_500": err_500 or 0,
         "avg_predicted_price": round(avg_price, 2) if avg_price else None,

@@ -3,19 +3,35 @@ import pandas as pd
 import json
 from typing import Optional
 from fastapi import FastAPI, Request, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
 from pydantic import BaseModel, Field
+from datetime import datetime, timedelta
 
-from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
-from fastapi.responses import Response
+from prometheus_client import (
+    Counter,
+    Gauge,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+)
 
 from utils.db import (
     init_db,
     log_prediction,
     get_prediction_stats,
 )
+
 prediction_counter = Counter("prediction_requests_total", "Total prediction requests")
+
+# Prometheus Gauges (defined globally)
+total_requests_g = Gauge("total_requests", "Total prediction requests")
+success_requests_g = Gauge("success_200", "Successful predictions (HTTP 200)")
+bad_request_g = Gauge("bad_request_400", "Bad requests (HTTP 400)")
+validation_errors_g = Gauge("validation_errors_422", "Validation errors (HTTP 422)")
+internal_errors_g = Gauge("internal_errors_500", "Internal server errors (HTTP 500)")
+avg_price_g = Gauge("avg_predicted_price", "Average predicted house price (USD)")
+model_version_usage_g = Gauge("model_version_usage", "Model version usage count", ["version"])
 
 app = FastAPI(title="Housing Price Prediction API")
 
@@ -25,13 +41,11 @@ def setup():
     init_db()
 
 
-# Load model + metadata
+# Load model and scaler
 model_package = joblib.load("models/best_model.pkl")
 model = model_package["model"]
 model_type = model_package.get("model_type", "UnknownModel")
 model_version = model_package.get("model_version", "unknown")
-
-# Load scaler
 scaler = joblib.load("models/scaler.pkl")
 
 
@@ -47,13 +61,37 @@ class HousingFeatures(BaseModel):
     Longitude: float = Field(..., ge=-180, le=180)
 
 
-# Custom validation error handler
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-
+    body = await request.body()
+    log_prediction(
+        input_json=body.decode("utf-8"),
+        prediction_json=None,
+        status_code=422,
+        error_message=str(exc),
+        model_type=model_type,
+        model_version=model_version,
+    )
     return JSONResponse(
         status_code=422,
         content={"error": "Validation Error", "details": exc.errors()},
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    body = await request.body()
+    log_prediction(
+        input_json=body.decode("utf-8"),
+        prediction_json=None,
+        status_code=exc.status_code,
+        error_message=str(exc.detail),
+        model_type=model_type,
+        model_version=model_version,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": "HTTPException", "detail": exc.detail},
     )
 
 
@@ -103,19 +141,46 @@ def predict(features: HousingFeatures):
         )
 
 
-@app.get("/prediction-stats")
-def prediction_stats(
-    start: Optional[str] = Query(None, description="Start datetime (ISO format, UTC)"),
-    end: Optional[str] = Query(None, description="End datetime (ISO format, UTC)"),
-):
-    stats = get_prediction_stats(start, end)
-    return stats
-
-
- 
 @app.get("/metrics")
-def metrics():
+def metrics(start: Optional[str] = Query(None), end: Optional[str] = Query(None)):
+    try:
+        start_dt = datetime.fromisoformat(start) if start else datetime.utcnow() - timedelta(days=15)
+        end_dt = datetime.fromisoformat(end) if end else datetime.utcnow()
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid datetime format. Use ISO format."},
+        )
+
+    stats = get_prediction_stats(start=start_dt.isoformat(), end=end_dt.isoformat())
+
+    total_requests_g.set(stats["total_requests"])
+    success_requests_g.set(stats["success_200"])
+    bad_request_g.set(stats["bad_request_400"])
+    validation_errors_g.set(stats["validation_errors_422"])
+    internal_errors_g.set(stats["internal_errors_500"])
+
+    if stats["avg_predicted_price"] is not None:
+        avg_price_g.set(stats["avg_predicted_price"])
+
+    for version, count in stats["model_version_usage"].items():
+        model_version_usage_g.labels(version=version).set(count)
+
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/metrics-json")
+def metrics_json(start: Optional[str] = Query(None), end: Optional[str] = Query(None)):
+    try:
+        start_dt = datetime.fromisoformat(start) if start else datetime.utcnow() - timedelta(days=15)
+        end_dt = datetime.fromisoformat(end) if end else datetime.utcnow()
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Invalid datetime format. Use ISO format."},
+        )
+
+    return get_prediction_stats(start=start_dt.isoformat(), end=end_dt.isoformat())
 
 
 @app.get("/")
