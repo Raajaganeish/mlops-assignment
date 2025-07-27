@@ -19,6 +19,8 @@ prometheus-client
  
 # Linting and formatting
 flake8
+black
+isort
 
 # inference and model serving
 joblib
@@ -29,3 +31,9 @@ numpy
 # Testing
 pytest
 httpx
+
+pre-commit
+
+# Monitoring and metrics
+prometheus-fastapi-instrumentator
+prometheus-client
