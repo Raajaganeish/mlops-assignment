@@ -1,26 +1,16 @@
+import json
+from datetime import datetime, timedelta
+from typing import Optional
+
 import joblib
 import pandas as pd
-import json
-from typing import Optional
-from fastapi import FastAPI, Request, Query
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi import HTTPException
+from fastapi.responses import JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
 from pydantic import BaseModel, Field
-from datetime import datetime, timedelta
 
-from prometheus_client import (
-    Counter,
-    Gauge,
-    generate_latest,
-    CONTENT_TYPE_LATEST,
-)
-
-from utils.db import (
-    init_db,
-    log_prediction,
-    get_prediction_stats,
-)
+from utils.db import get_prediction_stats, init_db, log_prediction
 
 prediction_counter = Counter("prediction_requests_total", "Total prediction requests")
 
@@ -31,7 +21,9 @@ bad_request_g = Gauge("bad_request_400", "Bad requests (HTTP 400)")
 validation_errors_g = Gauge("validation_errors_422", "Validation errors (HTTP 422)")
 internal_errors_g = Gauge("internal_errors_500", "Internal server errors (HTTP 500)")
 avg_price_g = Gauge("avg_predicted_price", "Average predicted house price (USD)")
-model_version_usage_g = Gauge("model_version_usage", "Model version usage count", ["version"])
+model_version_usage_g = Gauge(
+    "model_version_usage", "Model version usage count", ["version"]
+)
 
 app = FastAPI(title="Housing Price Prediction API")
 
@@ -144,7 +136,11 @@ def predict(features: HousingFeatures):
 @app.get("/metrics")
 def metrics(start: Optional[str] = Query(None), end: Optional[str] = Query(None)):
     try:
-        start_dt = datetime.fromisoformat(start) if start else datetime.utcnow() - timedelta(days=15)
+        start_dt = (
+            datetime.fromisoformat(start)
+            if start
+            else datetime.utcnow() - timedelta(days=15)
+        )
         end_dt = datetime.fromisoformat(end) if end else datetime.utcnow()
     except ValueError:
         return JSONResponse(
@@ -172,7 +168,11 @@ def metrics(start: Optional[str] = Query(None), end: Optional[str] = Query(None)
 @app.get("/metrics-json")
 def metrics_json(start: Optional[str] = Query(None), end: Optional[str] = Query(None)):
     try:
-        start_dt = datetime.fromisoformat(start) if start else datetime.utcnow() - timedelta(days=15)
+        start_dt = (
+            datetime.fromisoformat(start)
+            if start
+            else datetime.utcnow() - timedelta(days=15)
+        )
         end_dt = datetime.fromisoformat(end) if end else datetime.utcnow()
     except ValueError:
         return JSONResponse(

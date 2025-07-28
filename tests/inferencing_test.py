@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+
 from api.inferencing import app
 
 client = TestClient(app)
