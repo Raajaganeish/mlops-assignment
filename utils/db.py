@@ -1,7 +1,9 @@
+import os
 import sqlite3
 from datetime import datetime, timedelta
 
-DB_FILE = "logs.db"
+DB_FILE = os.getenv("DB_FILE", "logs.db")
+print(f"🛠️ Initializing DB at: {DB_FILE}")
 
 
 def init_db():
