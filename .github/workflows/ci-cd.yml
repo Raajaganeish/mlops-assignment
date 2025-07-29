@@ -39,4 +39,13 @@ jobs:
     - name: Build Docker image
       run: |
         docker build -t housing-api:pr-${{ github.event.pull_request.number }} .
-        echo "📦 Docker image built: housing-api:pr-${{ github.event.pull_request.number }}"
+
+    - name: Log in to Docker Hub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    - name: Tag and Push Docker image
+      run: |
+        IMAGE_TAG=${{ github.event.pull_request.number }}
+        docker tag housing-api:pr-${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
+        docker push ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
+ 
