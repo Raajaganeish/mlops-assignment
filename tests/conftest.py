@@ -7,6 +7,7 @@ from utils import db
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
+    print("Setting up test database...")
     os.environ["DB_FILE"] = "test_logs.db"
     db.DB_FILE = "test_logs.db"
     db.init_db()

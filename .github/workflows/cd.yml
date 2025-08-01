@@ -1,4 +1,4 @@
-name: Build latest changes in main branch
+name: CD + Conditional Retrain on Main Push
 
 on:
   push:
@@ -6,51 +6,96 @@ on:
   workflow_dispatch:
 
 jobs:
-  cd:
-    name: 🚀 CD - Push & Verify Docker Image
+  check_changes:
+    name: 🔍 Check What Changed
     runs-on: ubuntu-latest
-
+    outputs:
+      data_changed: ${{ steps.check.outputs.data_changed }}
     steps:
-      - name: 🛎️ Checkout main branch code
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: 🐍 Set up Python
+      - name: Check for changes in data or training code
+        id: check
+        run: |
+          git fetch origin main --depth=2
+          FILES=$(git diff --name-only HEAD^ HEAD)
+          echo "Changed files:"
+          echo "$FILES"
+
+          if echo "$FILES" | grep -E '^(data/|src/(preprocess\.py|train\.py))'; then
+            echo "✅ Detected data/training-related changes"
+            echo "data_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ℹ️ No data/training-related changes"
+            echo "data_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  retrain:
+    name: 🤖 Retrain Model (if needed)
+    needs: check_changes
+    if: needs.check_changes.outputs.data_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: 🔐 Log in to Docker Hub
+      - name: Install dependencies
         run: |
-          echo "::group::Login to Docker Hub"
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Preprocessing
+        run: python src/preprocess.py
+
+      - name: Train Model
+        run: python src/train.py
+
+      - name: Upload trained model and scaler
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-artifacts
+          path: |
+            models/best_model.pkl
+            models/scaler.pkl
+
+  cd:
+    name: 🚀 Deploy Docker Image
+    needs: check_changes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Log in to Docker Hub
+        run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-          echo "::endgroup::"
 
-      - name: 🛠️ Build Docker image (main)
+      - name: Build Docker image
         run: |
-          echo "::group::Build Docker image"
           docker build -t housing-api:main .
-          echo "::endgroup::"
 
-      - name: 🚀 Tag and Push Docker image
+      - name: Tag and push Docker image
         run: |
-          echo "::group::Push Docker image"
           docker tag housing-api:main ${{ secrets.DOCKER_USERNAME }}/housing-api:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/housing-api:latest
-          echo "::endgroup::"
 
-      - name: 🧪 Run container and call /metrics-json
+      - name: Run container and call /metrics-json
         run: |
-          echo "::group::Clean previous container (if any)"
           docker rm -f housing-api || true
-          echo "::endgroup::"
-
-          echo "::group::Run Docker container"
           docker run -d -p 8000:80 --name housing-api housing-api:main
-          echo "::endgroup::"
-
-          echo "::group::Call /metrics-json"
           sleep 5
-          echo "⏳ Waiting for the container to start."
           if RESPONSE=$(curl --retry 5 --retry-delay 2 --silent http://localhost:8000/metrics-json); then
             echo "✅ /metrics-json endpoint response:"
             echo "$RESPONSE"
@@ -59,4 +104,3 @@ jobs:
             docker logs housing-api
             exit 1
           fi
-          echo "::endgroup::"
