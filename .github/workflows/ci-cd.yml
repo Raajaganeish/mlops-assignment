@@ -9,43 +9,102 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout PR code
+    - name: 🛎️ Checkout PR code
       uses: actions/checkout@v3
 
-    - name: Set up Python
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
-    - name: Install dependencies
+    - name: 📦 Install dependencies
       run: |
+        echo "::group::Installing Python packages"
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install flake8 black isort pytest
+        echo "::endgroup::"
 
-    - name: Lint code
+    - name: 🧹 Lint code
       run: |
+        echo "::group::Running flake8"
         flake8 .
+        echo "::endgroup::"
+
+        echo "::group::Checking code format with black"
         black --check .
+        echo "::endgroup::"
+
+        echo "::group::Checking import order with isort"
         isort --check-only .
+        echo "::endgroup::"
 
-    - name: Run tests
-      run: pytest
-
-    - name: Remove existing Docker image (optional)
+    - name: 🧪 Run tests
       run: |
+        echo "::group::Running pytest"
+        pytest
+        echo "::endgroup::"
+
+    - name: 🧼 Remove existing Docker image (optional)
+      run: |
+        echo "::group::Removing existing Docker image if exists"
         docker rmi housing-api:pr-${{ github.event.pull_request.number }} || true
+        echo "::endgroup::"
 
-    - name: Build Docker image
+    - name: 🛠️ Build Docker image
       run: |
+        echo "::group::Building Docker image"
         docker build -t housing-api:pr-${{ github.event.pull_request.number }} .
+        echo "::endgroup::"
 
-    - name: Log in to Docker Hub
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-    - name: Tag and Push Docker image
+    - name: 🔐 Log in to Docker Hub
       run: |
+        echo "::group::Logging in to Docker Hub"
+        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        echo "::endgroup::"
+
+    - name: 🚀 Tag and Push Docker image
+      run: |
+        echo "::group::Tagging and pushing Docker image"
         IMAGE_TAG=${{ github.event.pull_request.number }}
         docker tag housing-api:pr-${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
         docker push ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
- 
+        echo "::endgroup::"
+
+    - name: 🧪 Run container inside GitHub runner (Local Deploy)
+      run: |
+        echo "::group::Running Docker container locally"
+        docker run -d -p 8000:8000 --name housing-api housing-api:pr-${{ github.event.pull_request.number }}
+        echo "::endgroup::"
+
+        echo "::group::Performing health check"
+        sleep 5
+        if curl --retry 5 --retry-delay 2 http://localhost:8000/health; then
+          echo "✅ Container is healthy!"
+        else
+          echo "❌ Health check failed!"
+          docker logs housing-api
+          exit 1
+        fi
+        echo "::endgroup::"
+
+            - name: 🧪 Run container inside GitHub runner (Local Deploy)
+      run: |
+        echo "::group::Running Docker container locally"
+        docker run -d -p 8000:8000 --name housing-api housing-api:pr-${{ github.event.pull_request.number }}
+        echo "::endgroup::"
+
+        echo "::group::Calling /metrics-json endpoint"
+        sleep 5
+        echo "⏳ Waiting for service to start..."
+        
+        if RESPONSE=$(curl --retry 5 --retry-delay 2 --silent http://localhost:8000/metrics-json); then
+          echo "✅ /metrics-json endpoint is reachable!"
+          echo "📊 Response:"
+          echo "$RESPONSE"
+        else
+          echo "❌ Failed to reach /metrics-json endpoint"
+          docker logs housing-api
+          exit 1
+        fi
+        echo "::endgroup::"
