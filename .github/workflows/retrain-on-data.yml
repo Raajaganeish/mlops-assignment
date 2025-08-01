@@ -1,8 +1,8 @@
 name: Retrain on Data PR
 
 on:
-  pull_request:
-    branches: [ main ]  # Trigger only when PR targets the `main` branch
+  push:
+    branches: [ main ]  # Trigger only when code is pushed to `main`
     paths:
       - 'data/**'               # If any data file changes
       - 'src/preprocess.py'     # If preprocessing script changes
