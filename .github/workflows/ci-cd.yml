@@ -69,9 +69,8 @@ jobs:
     - name: 🚀 Tag and Push Docker image
       run: |
         echo "::group::Push Docker image"
-        IMAGE_TAG=${{ github.event.pull_request.number }}
-        docker tag housing-api:pr-${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
-        docker push ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
+        docker tag housing-api:pr-${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${{ github.event.pull_request.number }}
+        docker push ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${{ github.event.pull_request.number }}
         echo "::endgroup::"
 
     - name: 🧪 Run container and call /metrics-json
