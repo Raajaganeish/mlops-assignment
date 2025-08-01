@@ -1,8 +1,11 @@
 name: PR – Test and Build (No Secrets)
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -19,7 +22,7 @@ jobs:
 
     - name: 📦 Install dependencies
       run: |
-        echo "::group::Installing Python packages"
+        echo "::group::Installing dependencies"
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install flake8 black isort pytest
@@ -27,80 +30,61 @@ jobs:
 
     - name: 🧹 Lint code
       run: |
-        echo "::group::Running flake8"
+        echo "::group::flake8"
         flake8 .
         echo "::endgroup::"
 
-        echo "::group::Checking code format with black"
+        echo "::group::black"
         black --check .
         echo "::endgroup::"
 
-        echo "::group::Checking import order with isort"
+        echo "::group::isort"
         isort --check-only .
         echo "::endgroup::"
 
     - name: 🧪 Run tests
       run: |
-        echo "::group::Running pytest"
+        echo "::group::pytest"
         pytest
         echo "::endgroup::"
 
     - name: 🧼 Remove existing Docker image (optional)
       run: |
-        echo "::group::Removing existing Docker image if exists"
+        echo "::group::Remove old image"
         docker rmi housing-api:pr-${{ github.event.pull_request.number }} || true
         echo "::endgroup::"
 
     - name: 🛠️ Build Docker image
       run: |
-        echo "::group::Building Docker image"
+        echo "::group::Build Docker image"
         docker build -t housing-api:pr-${{ github.event.pull_request.number }} .
         echo "::endgroup::"
 
     - name: 🔐 Log in to Docker Hub
       run: |
-        echo "::group::Logging in to Docker Hub"
+        echo "::group::Login to Docker Hub"
         echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
         echo "::endgroup::"
 
     - name: 🚀 Tag and Push Docker image
       run: |
-        echo "::group::Tagging and pushing Docker image"
+        echo "::group::Push Docker image"
         IMAGE_TAG=${{ github.event.pull_request.number }}
         docker tag housing-api:pr-${IMAGE_TAG} ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
         docker push ${{ secrets.DOCKER_USERNAME }}/housing-api:pr-${IMAGE_TAG}
         echo "::endgroup::"
 
-    - name: 🧪 Run container inside GitHub runner (Local Deploy)
+    - name: 🧪 Run container and call /metrics-json
       run: |
-        echo "::group::Running Docker container locally"
-        docker run -d -p 8000:8000 --name housing-api housing-api:pr-${{ github.event.pull_request.number }}
+        echo "::group::Run Docker container"
+        docker run -d -p 8000:80 --name housing-api housing-api:pr-${{ github.event.pull_request.number }}
         echo "::endgroup::"
 
-        echo "::group::Performing health check"
+        echo "::group::Call /metrics-json"
         sleep 5
-        if curl --retry 5 --retry-delay 2 http://localhost:8000/health; then
-          echo "✅ Container is healthy!"
-        else
-          echo "❌ Health check failed!"
-          docker logs housing-api
-          exit 1
-        fi
-        echo "::endgroup::"
-
-            - name: 🧪 Run container inside GitHub runner (Local Deploy)
-      run: |
-        echo "::group::Running Docker container locally"
-        docker run -d -p 8000:8000 --name housing-api housing-api:pr-${{ github.event.pull_request.number }}
-        echo "::endgroup::"
-
-        echo "::group::Calling /metrics-json endpoint"
-        sleep 5
-        echo "⏳ Waiting for service to start..."
-        
+        echo "⏳ Waiting for the container to start..."
         if RESPONSE=$(curl --retry 5 --retry-delay 2 --silent http://localhost:8000/metrics-json); then
-          echo "✅ /metrics-json endpoint is reachable!"
-          echo "📊 Response:"
+          echo "✅ /metrics-json endpoint response:"
           echo "$RESPONSE"
         else
           echo "❌ Failed to reach /metrics-json endpoint"
