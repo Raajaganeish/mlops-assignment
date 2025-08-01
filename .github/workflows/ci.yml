@@ -1,0 +1,60 @@
+name: PR – Test and Build (No Secrets)
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    name: 🧪 CI - Test & Build on PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🛎️ Checkout PR code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 📦 Install dependencies
+        run: |
+          echo "::group::Installing dependencies"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 black isort pytest
+          echo "::endgroup::"
+
+      - name: 🧹 Lint code
+        run: |
+          echo "::group::flake8"
+          flake8 .
+          echo "::endgroup::"
+
+          echo "::group::black"
+          black --check .
+          echo "::endgroup::"
+
+          echo "::group::isort"
+          isort --check-only .
+          echo "::endgroup::"
+
+      - name: 🧪 Run tests
+        run: |
+          echo "::group::pytest"
+          pytest
+          echo "::endgroup::"
+
+      - name: 🧼 Remove existing Docker image (optional)
+        run: |
+          echo "::group::Remove old image"
+          docker rmi housing-api:pr-${{ github.event.number }} || true
+          echo "::endgroup::"
+
+      - name: 🛠️ Build Docker image
+        run: |
+          echo "::group::Build Docker image"
+          docker build -t housing-api:pr-${{ github.event.number }} .
+          echo "::endgroup::"
