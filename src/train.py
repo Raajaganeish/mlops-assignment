@@ -141,6 +141,7 @@ def main():
         f"✅ Training completed: model = {best_model_name}, "
         f"version = {model_version}"
     )
+    print("✅ Test logger to trigger re-train pipeline")
 
 
 # Run
