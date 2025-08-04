@@ -32,6 +32,7 @@ def preprocess_housing():
     os.makedirs("models", exist_ok=True)
     joblib.dump(scaler, "models/scaler.pkl")
     print("✅ Scaler saved to models/scaler.pkl")
+    print("✅ Test logger to trigger re-train pipeline")
 
 
 # Run the function
