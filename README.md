@@ -31,19 +31,18 @@ The goal is to predict median house values in California districts using input f
 ## 📂 Project Structure
 
 ```
-├── data/                    # Raw and processed data (DVC tracked)
-├── src/                     # Scripts for training, preprocessing, utils
-│   ├── train.py             # Model training and MLflow logging
-│   ├── preprocess.py        # Data cleaning and feature selection
-│   └── config.yaml          # Centralized configuration
+├── data/
+│   ├── raw/                 # Raw data (e.g., housing.csv)
+│   └── processed/           # Processed features and target
+├── src/
+│   ├── load_data.py         # Script to download and save raw data
+│   ├── preprocess.py        # Data cleaning and feature scaling
 ├── api/                     # FastAPI app code
-│   └── main.py              # REST API with /predict endpoint
 ├── models/                  # Saved models and artifacts
-├── Dockerfile               # Container setup
-├── .github/workflows/       # GitHub Actions CI/CD pipeline
-├── dvc.yaml                 # DVC pipeline file
 ├── logs/                    # Logs from prediction requests
-├── mlruns/                  # MLflow tracking directory
+├── .github/
+│   └── workflows/           # GitHub Actions config
+├── dvc.yaml                 # DVC pipeline file
 ├── README.md                # Project overview and setup
 └── requirements.txt         # Python dependencies
 ```
