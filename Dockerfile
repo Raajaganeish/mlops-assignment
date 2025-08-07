@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY api/ ./api/
 COPY models/ ./models/
 COPY utils/ ./utils/
+COPY logs/ ./logs/
 
 # Start the API using Uvicorn
 CMD ["uvicorn", "api.inferencing:app", "--host", "0.0.0.0", "--port", "80"]

@@ -2,8 +2,6 @@ __pycache__/
 .dvc/
 .git/
 data/
-logs/
-notebooks/
 tests/
 *.csv
 *.dvc
