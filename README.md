@@ -146,5 +146,4 @@ This pipeline offers a hands-on implementation of real-world MLOps workflows. It
 ---
 
 ## 📄 License
-
 This project is submitted for educational purposes only as part of the MLOps course assignment.
